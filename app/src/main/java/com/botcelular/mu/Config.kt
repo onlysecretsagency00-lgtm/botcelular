@@ -10,9 +10,8 @@ package com.botcelular.mu
  */
 object Config {
     // ── Update checker (GitHub Releases) ────────────────────────────
-    // TODO: reemplazar por el owner/repo real de GitHub una vez creado.
-    const val GITHUB_REPO_OWNER = "TU_USUARIO"
-    const val GITHUB_REPO_NAME = "TU_REPO"
+    const val GITHUB_REPO_OWNER = "onlysecretsagency00-lgtm"
+    const val GITHUB_REPO_NAME = "botcelular"
 
     // ── Loop del bot ─────────────────────────────────────────────────
     const val TICK_INTERVAL_MS = 2000L
