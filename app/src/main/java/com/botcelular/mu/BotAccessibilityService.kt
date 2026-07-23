@@ -14,6 +14,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.math.abs
 
 /**
@@ -159,12 +160,20 @@ class BotAccessibilityService : AccessibilityService() {
     }
 
     private fun onBubbleTapped() {
+        // TEMPORAL: diagnóstico visible en pantalla (sin acceso a logcat en
+        // esta instancia de LDPlayer, ver memoria del proyecto) para saber
+        // exactamente dónde se corta el flujo cuando "no pasa nada".
+        Toast.makeText(this, "tap detectado (running=${BotForegroundService.isRunning})", Toast.LENGTH_SHORT).show()
+
         val now = System.currentTimeMillis()
         // Evita procesar un segundo toque mientras el primero todavía está
         // en medio del flujo de encendido (que navega a MainActivity, pide
         // permiso y vuelve) — un doble-toque rápido ahí podía terminar
         // interactuando sin querer con el diálogo de permiso.
-        if (now - lastTapAtMs < TAP_DEBOUNCE_MS) return
+        if (now - lastTapAtMs < TAP_DEBOUNCE_MS) {
+            Toast.makeText(this, "ignorado por debounce", Toast.LENGTH_SHORT).show()
+            return
+        }
         lastTapAtMs = now
 
         if (BotForegroundService.isRunning) {
@@ -178,9 +187,14 @@ class BotAccessibilityService : AccessibilityService() {
             // (tema transparente, se cierra sola) en vez de MainActivity,
             // para que no se vea la UI normal de la app, solo el diálogo
             // del sistema.
-            startActivity(Intent(this, AutoStartActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            })
+            try {
+                startActivity(Intent(this, AutoStartActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (e: Exception) {
+                Toast.makeText(this, "Error abriendo AutoStartActivity: ${e.message}", Toast.LENGTH_LONG).show()
+                Log.e(TAG, "Error abriendo AutoStartActivity", e)
+            }
         }
     }
 
@@ -215,6 +229,13 @@ class BotAccessibilityService : AccessibilityService() {
                 MotionEvent.ACTION_UP -> {
                     val movedX = abs(event.rawX - touchStartX)
                     val movedY = abs(event.rawY - touchStartY)
+                    // TEMPORAL: confirma que el toque llega al listener,
+                    // aunque no cuente como click (ver onBubbleTapped).
+                    Toast.makeText(
+                        this@BotAccessibilityService,
+                        "UP movedX=${movedX.toInt()} movedY=${movedY.toInt()}",
+                        Toast.LENGTH_SHORT,
+                    ).show()
                     if (movedX < DRAG_CLICK_THRESHOLD_PX && movedY < DRAG_CLICK_THRESHOLD_PX) {
                         v.performClick()
                         onBubbleTapped()
