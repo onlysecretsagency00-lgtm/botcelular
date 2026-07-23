@@ -19,18 +19,8 @@ import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
-    companion object {
-        /** Extra booleano: si viene en true, dispara el flujo de encendido
-         * solo (sin que el usuario toque ENCENDER) y vuelve a esconderse al
-         * terminar — usado por la burbuja flotante de BotAccessibilityService
-         * para prender el bot con un solo toque, sin abrir la app "de
-         * verdad". */
-        const val EXTRA_AUTO_START = "auto_start"
-    }
-
     private lateinit var binding: ActivityMainBinding
     private lateinit var projectionManager: MediaProjectionManager
-    private var autoStart = false
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -47,10 +37,8 @@ class MainActivity : AppCompatActivity() {
             }
             startForegroundService(serviceIntent)
             updateStatus()
-            if (autoStart) moveTaskToBack(true)
         } else {
             Toast.makeText(this, "Permiso de captura de pantalla denegado.", Toast.LENGTH_LONG).show()
-            if (autoStart) moveTaskToBack(true)
         }
     }
 
@@ -70,11 +58,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         showLastCrashIfAny()
-
-        autoStart = intent.getBooleanExtra(EXTRA_AUTO_START, false)
-        if (autoStart && !BotForegroundService.isRunning) {
-            onToggleClicked()
-        }
     }
 
     /** Muestra el último crash guardado por BotApplication (si hay uno) y lo
@@ -84,21 +67,6 @@ class MainActivity : AppCompatActivity() {
         if (!file.exists()) return
         binding.textCrashLog.text = "Último error:\n\n${file.readText()}"
         file.delete()
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        // launchMode="singleTop": si esta Activity ya existía (ej. quedó en
-        // segundo plano tras un toque anterior de la burbuja), Android
-        // reusa la instancia y llama acá en vez de onCreate() de nuevo — sin
-        // esto, un segundo toque de la burbuja mientras la primera todavía
-        // estaba resolviéndose podía traer de vuelta una instancia con el
-        // autoStart/estado viejo en vez de procesar el pedido nuevo.
-        setIntent(intent)
-        autoStart = intent.getBooleanExtra(EXTRA_AUTO_START, false)
-        if (autoStart && !BotForegroundService.isRunning) {
-            onToggleClicked()
-        }
     }
 
     override fun onResume() {

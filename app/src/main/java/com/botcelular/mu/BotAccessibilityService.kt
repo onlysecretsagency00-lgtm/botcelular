@@ -174,13 +174,12 @@ class BotAccessibilityService : AccessibilityService() {
             updateOverlayAppearance(false)
         } else {
             // Encender requiere el diálogo de consentimiento de MediaProjection,
-            // que solo una Activity puede disparar — abrimos MainActivity con
-            // un flag para que dispare ese flujo sola y vuelva a esconderse
-            // (ver MainActivity.EXTRA_AUTO_START), sin que el usuario tenga
-            // que tocar nada más ahí.
-            startActivity(Intent(this, MainActivity::class.java).apply {
+            // que solo una Activity puede disparar — usa AutoStartActivity
+            // (tema transparente, se cierra sola) en vez de MainActivity,
+            // para que no se vea la UI normal de la app, solo el diálogo
+            // del sistema.
+            startActivity(Intent(this, AutoStartActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra(MainActivity.EXTRA_AUTO_START, true)
             })
         }
     }

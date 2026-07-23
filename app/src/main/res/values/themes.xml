@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.BotCelular" parent="Theme.MaterialComponents.DayNight.NoActionBar" />
+
+    <!-- Usado solo por AutoStartActivity: sin esto, la burbuja flotante
+         dejaría ver un flash de la pantalla normal de MainActivity antes
+         de que aparezca el diálogo del sistema. El diálogo en sí no se
+         puede evitar (Android lo exige), pero con este tema no se ve nada
+         de nuestra propia UI detrás. -->
+    <style name="Theme.Transparent" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowIsFloating">true</item>
+    </style>
 </resources>
