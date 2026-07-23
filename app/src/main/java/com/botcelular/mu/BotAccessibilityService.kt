@@ -33,10 +33,13 @@ class BotAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "BotAccessibilityService"
-        private const val DRAG_CLICK_THRESHOLD_PX = 12
+        private const val DRAG_CLICK_THRESHOLD_PX = 24
+        private const val TAP_DEBOUNCE_MS = 1500L
         var instance: BotAccessibilityService? = null
             private set
     }
+
+    private var lastTapAtMs = 0L
 
     private var windowManager: WindowManager? = null
     private var overlayView: TextView? = null
@@ -156,6 +159,14 @@ class BotAccessibilityService : AccessibilityService() {
     }
 
     private fun onBubbleTapped() {
+        val now = System.currentTimeMillis()
+        // Evita procesar un segundo toque mientras el primero todavía está
+        // en medio del flujo de encendido (que navega a MainActivity, pide
+        // permiso y vuelve) — un doble-toque rápido ahí podía terminar
+        // interactuando sin querer con el diálogo de permiso.
+        if (now - lastTapAtMs < TAP_DEBOUNCE_MS) return
+        lastTapAtMs = now
+
         if (BotForegroundService.isRunning) {
             startService(Intent(this, BotForegroundService::class.java).apply {
                 action = BotForegroundService.ACTION_STOP

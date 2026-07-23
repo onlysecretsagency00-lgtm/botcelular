@@ -74,6 +74,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // launchMode="singleTop": si esta Activity ya existía (ej. quedó en
+        // segundo plano tras un toque anterior de la burbuja), Android
+        // reusa la instancia y llama acá en vez de onCreate() de nuevo — sin
+        // esto, un segundo toque de la burbuja mientras la primera todavía
+        // estaba resolviéndose podía traer de vuelta una instancia con el
+        // autoStart/estado viejo en vez de procesar el pedido nuevo.
+        setIntent(intent)
+        autoStart = intent.getBooleanExtra(EXTRA_AUTO_START, false)
+        if (autoStart && !BotForegroundService.isRunning) {
+            onToggleClicked()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         updateStatus()
