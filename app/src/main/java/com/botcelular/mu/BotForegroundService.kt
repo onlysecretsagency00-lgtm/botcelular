@@ -106,6 +106,16 @@ class BotForegroundService : Service() {
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val projection = projectionManager.getMediaProjection(resultCode, resultData)
         mediaProjection = projection
+        // Obligatorio desde Android 14 (API 34, nuestro targetSdk): sin un
+        // callback registrado ANTES de createVirtualDisplay(), el sistema
+        // tira IllegalStateException ("Register a callback before calling
+        // this method") y la app se cierra apenas se acepta el permiso.
+        projection.registerCallback(object : MediaProjection.Callback() {
+            override fun onStop() {
+                Log.i(TAG, "MediaProjection detenida por el sistema.")
+                stopEverything()
+            }
+        }, android.os.Handler(mainLooper))
 
         val reader = ImageReader.newInstance(screenWidth, screenHeight, android.graphics.PixelFormat.RGBA_8888, 2)
         imageReader = reader
@@ -119,6 +129,7 @@ class BotForegroundService : Service() {
 
         isRunning = true
         loopJob = serviceScope.launch { runLoop() }
+        BotAccessibilityService.instance?.updateOverlayAppearance(true)
         Log.i(TAG, "Captura iniciada ($screenWidth x $screenHeight).")
     }
 
@@ -181,6 +192,7 @@ class BotForegroundService : Service() {
 
     private fun stopEverything() {
         isRunning = false
+        BotAccessibilityService.instance?.updateOverlayAppearance(false)
         loopJob?.cancel()
         loopJob = null
         virtualDisplay?.release()

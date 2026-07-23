@@ -18,8 +18,18 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        /** Extra booleano: si viene en true, dispara el flujo de encendido
+         * solo (sin que el usuario toque ENCENDER) y vuelve a esconderse al
+         * terminar — usado por la burbuja flotante de BotAccessibilityService
+         * para prender el bot con un solo toque, sin abrir la app "de
+         * verdad". */
+        const val EXTRA_AUTO_START = "auto_start"
+    }
+
     private lateinit var binding: ActivityMainBinding
     private lateinit var projectionManager: MediaProjectionManager
+    private var autoStart = false
 
     private val requestNotificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -36,8 +46,10 @@ class MainActivity : AppCompatActivity() {
             }
             startForegroundService(serviceIntent)
             updateStatus()
+            if (autoStart) moveTaskToBack(true)
         } else {
             Toast.makeText(this, "Permiso de captura de pantalla denegado.", Toast.LENGTH_LONG).show()
+            if (autoStart) moveTaskToBack(true)
         }
     }
 
@@ -54,6 +66,11 @@ class MainActivity : AppCompatActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        autoStart = intent.getBooleanExtra(EXTRA_AUTO_START, false)
+        if (autoStart && !BotForegroundService.isRunning) {
+            onToggleClicked()
         }
     }
 
