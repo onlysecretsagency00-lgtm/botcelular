@@ -68,16 +68,24 @@ class BotForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // SIEMPRE, sin importar la acción: si el sistema llega a entregar
+        // primero un intent ACTION_STOP encolado (ej. toggle rápido OFF/ON
+        // desde la burbuja) en la invocación de onStartCommand que resultó
+        // de un startForegroundService(), esta invocación TIENE que llamar
+        // a startForeground() igual — si no, Android mata toda la app con
+        // "did not then call Service.startForeground()", que es exactamente
+        // el crash que reportó el usuario al pasar de OFF a ON.
+        startForeground(NOTIFICATION_ID, buildNotification())
+
         when (intent?.action) {
             ACTION_START -> {
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
                 val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
                 if (resultData == null || resultCode == -1) {
                     Log.e(TAG, "Faltan datos de permiso de MediaProjection — no se puede arrancar.")
-                    stopSelf()
+                    stopEverything()
                     return START_NOT_STICKY
                 }
-                startForeground(NOTIFICATION_ID, buildNotification())
                 startCapture(resultCode, resultData)
             }
             ACTION_STOP -> stopEverything()
