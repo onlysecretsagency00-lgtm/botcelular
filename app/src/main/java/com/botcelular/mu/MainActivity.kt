@@ -26,6 +26,15 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { /* si la niega, la notificación del foreground service puede no mostrarse — no bloqueante */ }
 
+    // TEMPORAL: prueba de control para descartar si el problema es específico
+    // de MediaProjection o algo más general con los diálogos de permiso en
+    // este dispositivo — CAMERA sí tiene diálogo de runtime en API 28.
+    private val requestCameraTest = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        Toast.makeText(this, "resultado permiso cámara: $granted", Toast.LENGTH_LONG).show()
+    }
+
     private val requestScreenCapture = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -52,6 +61,10 @@ class MainActivity : AppCompatActivity() {
         binding.textVersion.text = "v${BuildConfig.VERSION_NAME}"
         binding.buttonToggle.setOnClickListener { onToggleClicked() }
         binding.buttonCheckUpdate.setOnClickListener { checkForUpdate() }
+        binding.buttonTestPermission.setOnClickListener {
+            Toast.makeText(this, "pidiendo permiso de cámara...", Toast.LENGTH_SHORT).show()
+            requestCameraTest.launch(android.Manifest.permission.CAMERA)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
