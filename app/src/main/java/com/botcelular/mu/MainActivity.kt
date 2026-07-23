@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.botcelular.mu.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -68,10 +69,21 @@ class MainActivity : AppCompatActivity() {
             requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        showLastCrashIfAny()
+
         autoStart = intent.getBooleanExtra(EXTRA_AUTO_START, false)
         if (autoStart && !BotForegroundService.isRunning) {
             onToggleClicked()
         }
+    }
+
+    /** Muestra el último crash guardado por BotApplication (si hay uno) y lo
+     * borra, para no repetirlo en próximas aperturas. */
+    private fun showLastCrashIfAny() {
+        val file = File(filesDir, BotApplication.CRASH_LOG_FILE)
+        if (!file.exists()) return
+        binding.textCrashLog.text = "Último error:\n\n${file.readText()}"
+        file.delete()
     }
 
     override fun onNewIntent(intent: Intent) {
