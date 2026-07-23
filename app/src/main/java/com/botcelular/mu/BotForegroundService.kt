@@ -88,11 +88,21 @@ class BotForegroundService : Service() {
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
                 val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
                 if (resultData == null || resultCode == -1) {
+                    Toast.makeText(this, "Faltan datos de MediaProjection (resultData=null?)", Toast.LENGTH_LONG).show()
                     Log.e(TAG, "Faltan datos de permiso de MediaProjection — no se puede arrancar.")
                     stopEverything()
                     return START_NOT_STICKY
                 }
-                startCapture(resultCode, resultData)
+                // TEMPORAL: try/catch de diagnóstico — si algo dentro de
+                // startCapture() tira, lo vemos en pantalla en vez de tener
+                // que esperar a que MainActivity muestre el crash log.
+                try {
+                    startCapture(resultCode, resultData)
+                    Toast.makeText(this, "startCapture() OK", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "startCapture() falló: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "startCapture() falló", e)
+                }
             }
             ACTION_STOP -> stopEverything()
         }
