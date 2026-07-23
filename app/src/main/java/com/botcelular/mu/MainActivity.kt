@@ -111,12 +111,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus() {
         val running = BotForegroundService.isRunning
-        binding.textStatus.text = if (running) "Bot: ENCENDIDO" else "Bot: APAGADO"
+        binding.textStatus.text = if (running) "Sesión: ACTIVA" else "Sesión: APAGADA"
         binding.buttonToggle.text = if (running) "APAGAR" else "ENCENDER"
-        binding.textPermissions.text = if (!isAccessibilityServiceEnabled()) {
-            "Falta habilitar el servicio de accesibilidad."
-        } else {
-            ""
+        binding.textPermissions.text = when {
+            !isAccessibilityServiceEnabled() -> "Falta habilitar el servicio de accesibilidad."
+            running -> "Listo — usá el círculo flotante para activar/pausar el bot."
+            else -> ""
         }
     }
 

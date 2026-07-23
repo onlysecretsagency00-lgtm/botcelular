@@ -25,11 +25,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".AutoStartActivity"
-            android:exported="false"
-            android:theme="@style/Theme.Transparent"
-            android:excludeFromRecents="true" />
 
         <service
             android:name=".BotAccessibilityService"

@@ -24,18 +24,24 @@ import kotlin.math.abs
  * Accesibilidad). Sin lógica de decisión acá: BotForegroundService es
  * quien decide QUÉ tocar, esto solo ejecuta el gesto.
  *
- * También dueña de la burbuja flotante ENCENDER/APAGAR (ver [showOverlay])
- * — un servicio de accesibilidad puede agregar overlays de tipo
+ * También dueña de la burbuja flotante ON/OFF (ver [showOverlay]) — un
+ * servicio de accesibilidad puede agregar overlays de tipo
  * TYPE_ACCESSIBILITY_OVERLAY sin pedir el permiso "Mostrar sobre otras
  * apps" aparte, así que se reutiliza este mismo servicio en vez de sumar
  * un permiso nuevo.
+ *
+ * La burbuja SOLO pausa/reanuda el bot dentro de una sesión ya encendida
+ * desde MainActivity — nunca pide el permiso de MediaProjection ella
+ * misma (eso requeriría abrir una Activity, algo que resultó frágil e
+ * inconsistente al probarlo en vivo). Ver BotForegroundService para el
+ * porqué de esta separación isRunning/isPaused.
  */
 class BotAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "BotAccessibilityService"
         private const val DRAG_CLICK_THRESHOLD_PX = 24
-        private const val TAP_DEBOUNCE_MS = 1500L
+        private const val TAP_DEBOUNCE_MS = 800L
         var instance: BotAccessibilityService? = null
             private set
     }
@@ -86,7 +92,7 @@ class BotAccessibilityService : AccessibilityService() {
         dispatchGesture(gesture, null, null)
     }
 
-    // ── Burbuja flotante ENCENDER/APAGAR ────────────────────────────────
+    // ── Burbuja flotante ON/OFF ──────────────────────────────────────────
 
     private fun showOverlay() {
         if (overlayView != null) return   // ya está mostrada
@@ -101,7 +107,7 @@ class BotAccessibilityService : AccessibilityService() {
             gravity = Gravity.CENTER
             setTextColor(0xFFFFFFFF.toInt())
         }
-        applyBubbleBackground(view, running = false)
+        applyBubbleBackground(view, active = false)
 
         val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
@@ -142,17 +148,19 @@ class BotAccessibilityService : AccessibilityService() {
         overlayParams = null
     }
 
-    /** Llamado por BotForegroundService cuando arranca/frena de verdad, para que el color/texto de la burbuja siempre refleje el estado real. */
-    fun updateOverlayAppearance(running: Boolean) {
+    /** Llamado por BotForegroundService cada vez que isPaused cambia de
+     * verdad, para que el color/texto de la burbuja siempre refleje el
+     * estado real (activo=ON verde, pausado o sesión apagada=OFF gris). */
+    fun updateOverlayAppearance(active: Boolean) {
         val view = overlayView ?: return
         view.post {
-            view.text = if (running) "ON" else "OFF"
-            applyBubbleBackground(view, running)
+            view.text = if (active) "ON" else "OFF"
+            applyBubbleBackground(view, active)
         }
     }
 
-    private fun applyBubbleBackground(view: TextView, running: Boolean) {
-        val color = if (running) 0xFF4CAF50.toInt() else 0xFF9E9E9E.toInt()
+    private fun applyBubbleBackground(view: TextView, active: Boolean) {
+        val color = if (active) 0xFF4CAF50.toInt() else 0xFF9E9E9E.toInt()
         view.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(color)
@@ -160,42 +168,23 @@ class BotAccessibilityService : AccessibilityService() {
     }
 
     private fun onBubbleTapped() {
-        // TEMPORAL: diagnóstico visible en pantalla (sin acceso a logcat en
-        // esta instancia de LDPlayer, ver memoria del proyecto) para saber
-        // exactamente dónde se corta el flujo cuando "no pasa nada".
-        Toast.makeText(this, "tap detectado (running=${BotForegroundService.isRunning})", Toast.LENGTH_SHORT).show()
-
         val now = System.currentTimeMillis()
-        // Evita procesar un segundo toque mientras el primero todavía está
-        // en medio del flujo de encendido (que navega a MainActivity, pide
-        // permiso y vuelve) — un doble-toque rápido ahí podía terminar
-        // interactuando sin querer con el diálogo de permiso.
-        if (now - lastTapAtMs < TAP_DEBOUNCE_MS) {
-            Toast.makeText(this, "ignorado por debounce", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (now - lastTapAtMs < TAP_DEBOUNCE_MS) return
         lastTapAtMs = now
 
-        if (BotForegroundService.isRunning) {
-            startService(Intent(this, BotForegroundService::class.java).apply {
-                action = BotForegroundService.ACTION_STOP
-            })
-            updateOverlayAppearance(false)
-        } else {
-            // Encender requiere el diálogo de consentimiento de MediaProjection,
-            // que solo una Activity puede disparar — usa AutoStartActivity
-            // (tema transparente, se cierra sola) en vez de MainActivity,
-            // para que no se vea la UI normal de la app, solo el diálogo
-            // del sistema.
-            try {
-                startActivity(Intent(this, AutoStartActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
-            } catch (e: Exception) {
-                Toast.makeText(this, "Error abriendo AutoStartActivity: ${e.message}", Toast.LENGTH_LONG).show()
-                Log.e(TAG, "Error abriendo AutoStartActivity", e)
-            }
+        if (!BotForegroundService.isRunning) {
+            // Todavía no se encendió la sesión desde la app — la burbuja no
+            // puede pedir el permiso de MediaProjection por su cuenta.
+            Toast.makeText(this, "Primero abrí BotCelular y tocá ENCENDER.", Toast.LENGTH_LONG).show()
+            return
         }
+
+        val action = if (BotForegroundService.isPaused) {
+            BotForegroundService.ACTION_RESUME
+        } else {
+            BotForegroundService.ACTION_PAUSE
+        }
+        startService(Intent(this, BotForegroundService::class.java).apply { this.action = action })
     }
 
     private fun makeDragTouchListener(
@@ -229,13 +218,6 @@ class BotAccessibilityService : AccessibilityService() {
                 MotionEvent.ACTION_UP -> {
                     val movedX = abs(event.rawX - touchStartX)
                     val movedY = abs(event.rawY - touchStartY)
-                    // TEMPORAL: confirma que el toque llega al listener,
-                    // aunque no cuente como click (ver onBubbleTapped).
-                    Toast.makeText(
-                        this@BotAccessibilityService,
-                        "UP movedX=${movedX.toInt()} movedY=${movedY.toInt()}",
-                        Toast.LENGTH_SHORT,
-                    ).show()
                     if (movedX < DRAG_CLICK_THRESHOLD_PX && movedY < DRAG_CLICK_THRESHOLD_PX) {
                         v.performClick()
                         onBubbleTapped()

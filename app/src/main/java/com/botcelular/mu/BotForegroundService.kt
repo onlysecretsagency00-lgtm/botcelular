@@ -16,7 +16,6 @@ import android.os.Build
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,12 +27,22 @@ import kotlinx.coroutines.launch
  * Dueño del loop de vida real del bot — equivalente Android de
  * general_bot.py::GeneralBot._loop(). Corre como foreground service
  * (obligatorio en Android para un servicio de larga duración, requiere
- * notificación persistente) mientras el toggle esté en ON.
+ * notificación persistente).
  *
- * Captura frames vía MediaProjection (API de Android para grabar pantalla
- * dentro de la propia app — pide consentimiento del usuario cada vez que
- * arranca la sesión, no se puede evitar) y actúa tocando la pantalla vía
- * BotAccessibilityService.
+ * Dos estados independientes, a propósito:
+ * - [isRunning]: la SESIÓN está viva (captura de pantalla vía MediaProjection
+ *   + foreground service). Solo se prende/apaga desde MainActivity
+ *   (ENCENDER/APAGAR), porque arrancarla exige el diálogo de consentimiento
+ *   de MediaProjection — eso solo lo puede disparar una Activity, y cada
+ *   sesión nueva requiere un consentimiento nuevo (el permiso no es
+ *   reutilizable de una sesión a otra).
+ * - [isPaused]: si el bot está efectivamente actuando (tocando pantalla) o
+ *   solo capturando en silencio. Esto SÍ lo controla la burbuja flotante de
+ *   BotAccessibilityService (ACTION_PAUSE/ACTION_RESUME) sin pedir permiso
+ *   nunca — la sesión (y el MediaProjection) ya está viva de antes, así que
+ *   pausar/reanudar es instantáneo. Pedido explícito del usuario: que
+ *   ENCENDER en la app solo "habilite" el bot, y que sea la burbuja la que
+ *   realmente lo prenda/apague.
  */
 class BotForegroundService : Service() {
 
@@ -44,11 +53,17 @@ class BotForegroundService : Service() {
 
         const val ACTION_START = "com.botcelular.mu.action.START"
         const val ACTION_STOP = "com.botcelular.mu.action.STOP"
+        const val ACTION_PAUSE = "com.botcelular.mu.action.PAUSE"
+        const val ACTION_RESUME = "com.botcelular.mu.action.RESUME"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
 
         @Volatile
         var isRunning = false
+            private set
+
+        @Volatile
+        var isPaused = true
             private set
     }
 
@@ -65,22 +80,16 @@ class BotForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        // TEMPORAL: diagnóstico en pantalla (sin logcat disponible) — confirma
-        // si el proceso del servicio llega a crearse siquiera.
-        Toast.makeText(this, "BotForegroundService.onCreate", Toast.LENGTH_SHORT).show()
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // TEMPORAL: diagnóstico en pantalla.
-        Toast.makeText(this, "onStartCommand action=${intent?.action}", Toast.LENGTH_SHORT).show()
-        // SIEMPRE, sin importar la acción: si el sistema llega a entregar
-        // primero un intent ACTION_STOP encolado (ej. toggle rápido OFF/ON
-        // desde la burbuja) en la invocación de onStartCommand que resultó
-        // de un startForegroundService(), esta invocación TIENE que llamar
-        // a startForeground() igual — si no, Android mata toda la app con
-        // "did not then call Service.startForeground()", que es exactamente
-        // el crash que reportó el usuario al pasar de OFF a ON.
+        // SIEMPRE, sin importar la acción: si esta invocación de
+        // onStartCommand resultó de un startForegroundService() (ACTION_START),
+        // el sistema exige que llamemos a startForeground() en ESTA llamada
+        // sí o sí, o mata toda la app con "did not then call
+        // Service.startForeground()". Llamarlo también para PAUSE/RESUME/STOP
+        // es inofensivo (la notificación ya existe, esto solo la refresca).
         startForeground(NOTIFICATION_ID, buildNotification())
 
         when (intent?.action) {
@@ -88,21 +97,19 @@ class BotForegroundService : Service() {
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
                 val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
                 if (resultData == null || resultCode == -1) {
-                    Toast.makeText(this, "Faltan datos de MediaProjection (resultData=null?)", Toast.LENGTH_LONG).show()
                     Log.e(TAG, "Faltan datos de permiso de MediaProjection — no se puede arrancar.")
                     stopEverything()
                     return START_NOT_STICKY
                 }
-                // TEMPORAL: try/catch de diagnóstico — si algo dentro de
-                // startCapture() tira, lo vemos en pantalla en vez de tener
-                // que esperar a que MainActivity muestre el crash log.
-                try {
-                    startCapture(resultCode, resultData)
-                    Toast.makeText(this, "startCapture() OK", Toast.LENGTH_SHORT).show()
-                } catch (e: Exception) {
-                    Toast.makeText(this, "startCapture() falló: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
-                    Log.e(TAG, "startCapture() falló", e)
-                }
+                startCapture(resultCode, resultData)
+            }
+            ACTION_PAUSE -> {
+                isPaused = true
+                BotAccessibilityService.instance?.updateOverlayAppearance(false)
+            }
+            ACTION_RESUME -> {
+                isPaused = false
+                BotAccessibilityService.instance?.updateOverlayAppearance(true)
             }
             ACTION_STOP -> stopEverything()
         }
@@ -152,9 +159,11 @@ class BotForegroundService : Service() {
         )
 
         isRunning = true
+        // Arranca en pausa a propósito — la burbuja es la que lo activa.
+        isPaused = true
         loopJob = serviceScope.launch { runLoop() }
-        BotAccessibilityService.instance?.updateOverlayAppearance(true)
-        Log.i(TAG, "Captura iniciada ($screenWidth x $screenHeight).")
+        BotAccessibilityService.instance?.updateOverlayAppearance(false)
+        Log.i(TAG, "Sesión iniciada ($screenWidth x $screenHeight), en pausa hasta que se active desde la burbuja.")
     }
 
     private fun captureBitmap(): Bitmap? {
@@ -180,12 +189,14 @@ class BotForegroundService : Service() {
 
     private suspend fun runLoop() {
         while (isRunning) {
-            val frame = captureBitmap()
-            if (frame != null) {
-                try {
-                    decideAndAct(frame)
-                } finally {
-                    frame.recycle()
+            if (!isPaused) {
+                val frame = captureBitmap()
+                if (frame != null) {
+                    try {
+                        decideAndAct(frame)
+                    } finally {
+                        frame.recycle()
+                    }
                 }
             }
             delay(Config.TICK_INTERVAL_MS)
@@ -216,6 +227,7 @@ class BotForegroundService : Service() {
 
     private fun stopEverything() {
         isRunning = false
+        isPaused = true
         BotAccessibilityService.instance?.updateOverlayAppearance(false)
         loopJob?.cancel()
         loopJob = null
