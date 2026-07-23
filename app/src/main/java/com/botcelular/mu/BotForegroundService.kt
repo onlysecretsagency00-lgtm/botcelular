@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,10 +65,15 @@ class BotForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // TEMPORAL: diagnóstico en pantalla (sin logcat disponible) — confirma
+        // si el proceso del servicio llega a crearse siquiera.
+        Toast.makeText(this, "BotForegroundService.onCreate", Toast.LENGTH_SHORT).show()
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // TEMPORAL: diagnóstico en pantalla.
+        Toast.makeText(this, "onStartCommand action=${intent?.action}", Toast.LENGTH_SHORT).show()
         // SIEMPRE, sin importar la acción: si el sistema llega a entregar
         // primero un intent ACTION_STOP encolado (ej. toggle rápido OFF/ON
         // desde la burbuja) en la invocación de onStartCommand que resultó
