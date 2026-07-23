@@ -75,6 +75,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onToggleClicked() {
+        // TEMPORAL: diagnóstico en pantalla (sin logcat disponible).
+        Toast.makeText(this, "onToggleClicked (isRunning=${BotForegroundService.isRunning})", Toast.LENGTH_SHORT).show()
+
         if (BotForegroundService.isRunning) {
             startService(Intent(this, BotForegroundService::class.java).apply {
                 action = BotForegroundService.ACTION_STOP
@@ -93,7 +96,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        requestScreenCapture.launch(projectionManager.createScreenCaptureIntent())
+        try {
+            Toast.makeText(this, "lanzando pedido de captura...", Toast.LENGTH_SHORT).show()
+            requestScreenCapture.launch(projectionManager.createScreenCaptureIntent())
+        } catch (e: Exception) {
+            Toast.makeText(this, "launch() falló: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {
