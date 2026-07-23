@@ -17,9 +17,13 @@ import androidx.activity.result.contract.ActivityResultContracts
  */
 class AutoStartActivity : ComponentActivity() {
 
+    private var launched = false
+
     private val requestScreenCapture = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        // TEMPORAL: diagnóstico en pantalla (sin logcat disponible).
+        Toast.makeText(this, "callback recibido, resultCode=${result.resultCode}", Toast.LENGTH_SHORT).show()
         if (result.resultCode == RESULT_OK && result.data != null) {
             val serviceIntent = Intent(this, BotForegroundService::class.java).apply {
                 action = BotForegroundService.ACTION_START
@@ -35,6 +39,22 @@ class AutoStartActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Toast.makeText(this, "AutoStartActivity onCreate", Toast.LENGTH_SHORT).show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Disparar el pedido de captura recién en onResume (no en onCreate)
+        // por si el sistema necesita que esta Activity ya esté realmente
+        // enfocada/visible antes de permitirle encadenar otra Activity —
+        // algunas versiones de Android bloquean en silencio un
+        // startActivityForResult lanzado demasiado temprano cuando la
+        // Activity que lo pide viene de un contexto no-Activity (acá, un
+        // AccessibilityService). launched evita relanzarlo si onResume se
+        // llama de nuevo (ej. al volver del propio diálogo).
+        if (launched) return
+        launched = true
+        Toast.makeText(this, "lanzando pedido de captura", Toast.LENGTH_SHORT).show()
         val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         requestScreenCapture.launch(projectionManager.createScreenCaptureIntent())
     }
