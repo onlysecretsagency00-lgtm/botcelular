@@ -109,9 +109,17 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        val captureIntent = projectionManager.createScreenCaptureIntent()
+        // TEMPORAL: diagnóstico — ¿el sistema tiene siquiera un componente
+        // que resuelva este intent? Si es null, el problema es que el
+        // componente de consentimiento de MediaProjection no existe/no
+        // resuelve en esta imagen de Android, no algo de nuestro código.
+        val resolved = captureIntent.resolveActivity(packageManager)
+        Toast.makeText(this, "componente resuelto: $resolved", Toast.LENGTH_LONG).show()
+
         try {
             Toast.makeText(this, "lanzando pedido de captura...", Toast.LENGTH_SHORT).show()
-            requestScreenCapture.launch(projectionManager.createScreenCaptureIntent())
+            requestScreenCapture.launch(captureIntent)
         } catch (e: Exception) {
             Toast.makeText(this, "launch() falló: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
         }
