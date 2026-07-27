@@ -80,10 +80,12 @@ class BotForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        DebugLog.add("BotForegroundService.onCreate")
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        DebugLog.add("onStartCommand action=${intent?.action}")
         // SIEMPRE, sin importar la acción: si esta invocación de
         // onStartCommand resultó de un startForegroundService() (ACTION_START),
         // el sistema exige que llamemos a startForeground() en ESTA llamada
@@ -97,11 +99,18 @@ class BotForegroundService : Service() {
                 val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
                 val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
                 if (resultData == null || resultCode == -1) {
+                    DebugLog.add("Faltan datos de MediaProjection (resultData=null?)")
                     Log.e(TAG, "Faltan datos de permiso de MediaProjection — no se puede arrancar.")
                     stopEverything()
                     return START_NOT_STICKY
                 }
-                startCapture(resultCode, resultData)
+                try {
+                    startCapture(resultCode, resultData)
+                    DebugLog.add("startCapture() OK")
+                } catch (e: Exception) {
+                    DebugLog.add("startCapture() falló: ${e.javaClass.simpleName}: ${e.message}")
+                    Log.e(TAG, "startCapture() falló", e)
+                }
             }
             ACTION_PAUSE -> {
                 isPaused = true

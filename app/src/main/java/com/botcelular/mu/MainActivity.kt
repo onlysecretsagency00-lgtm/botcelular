@@ -75,25 +75,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Muestra el último crash guardado por BotApplication (si hay uno) y lo
-     * borra, para no repetirlo en próximas aperturas. */
+     * borra, para no repetirlo en próximas aperturas. Se suma a DebugLog en
+     * vez de pisar el texto directamente, para no perderse con onResume(). */
     private fun showLastCrashIfAny() {
         val file = File(filesDir, BotApplication.CRASH_LOG_FILE)
         if (!file.exists()) return
-        binding.textCrashLog.text = "Último error:\n\n${file.readText()}"
+        DebugLog.add("=== CRASH ===\n${file.readText()}")
         file.delete()
     }
 
     override fun onResume() {
         super.onResume()
+        binding.textCrashLog.text = DebugLog.text
         updateStatus()
     }
 
     /** TEMPORAL: log de diagnóstico FIJO en pantalla (no como Toast, que se
-     * cierra solo antes de que se pueda ver/capturar) — se acumula en
-     * textCrashLog hasta que se reinicie la Activity. */
+     * cierra solo antes de que se pueda ver/capturar). Usa DebugLog (objeto
+     * compartido) para poder mostrar también lo que loguea
+     * BotForegroundService, que no tiene UI propia. */
     private fun logDebug(msg: String) {
-        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-        binding.textCrashLog.text = "$time  $msg\n${binding.textCrashLog.text}"
+        DebugLog.add(msg)
+        binding.textCrashLog.text = DebugLog.text
     }
 
     private fun onToggleClicked() {
