@@ -32,12 +32,13 @@ class MainActivity : AppCompatActivity() {
     private val requestCameraTest = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        Toast.makeText(this, "resultado permiso cámara: $granted", Toast.LENGTH_LONG).show()
+        logDebug("resultado permiso cámara: $granted")
     }
 
     private val requestScreenCapture = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        logDebug("callback captura: resultCode=${result.resultCode} data=${result.data}")
         if (result.resultCode == RESULT_OK && result.data != null) {
             val serviceIntent = Intent(this, BotForegroundService::class.java).apply {
                 action = BotForegroundService.ACTION_START
@@ -47,7 +48,7 @@ class MainActivity : AppCompatActivity() {
             startForegroundService(serviceIntent)
             updateStatus()
         } else {
-            Toast.makeText(this, "Permiso de captura de pantalla denegado.", Toast.LENGTH_LONG).show()
+            logDebug("permiso de captura de pantalla denegado")
         }
     }
 
@@ -87,9 +88,16 @@ class MainActivity : AppCompatActivity() {
         updateStatus()
     }
 
+    /** TEMPORAL: log de diagnóstico FIJO en pantalla (no como Toast, que se
+     * cierra solo antes de que se pueda ver/capturar) — se acumula en
+     * textCrashLog hasta que se reinicie la Activity. */
+    private fun logDebug(msg: String) {
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        binding.textCrashLog.text = "$time  $msg\n${binding.textCrashLog.text}"
+    }
+
     private fun onToggleClicked() {
-        // TEMPORAL: diagnóstico en pantalla (sin logcat disponible).
-        Toast.makeText(this, "onToggleClicked (isRunning=${BotForegroundService.isRunning})", Toast.LENGTH_SHORT).show()
+        logDebug("onToggleClicked (isRunning=${BotForegroundService.isRunning})")
 
         if (BotForegroundService.isRunning) {
             startService(Intent(this, BotForegroundService::class.java).apply {
@@ -100,11 +108,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (!isAccessibilityServiceEnabled()) {
-            Toast.makeText(
-                this,
-                "Habilitá 'BotCelular' en Ajustes > Accesibilidad, después volvé a tocar ENCENDER.",
-                Toast.LENGTH_LONG,
-            ).show()
+            logDebug("falta accesibilidad, abriendo Ajustes")
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
@@ -115,13 +119,13 @@ class MainActivity : AppCompatActivity() {
         // componente de consentimiento de MediaProjection no existe/no
         // resuelve en esta imagen de Android, no algo de nuestro código.
         val resolved = captureIntent.resolveActivity(packageManager)
-        Toast.makeText(this, "componente resuelto: $resolved", Toast.LENGTH_LONG).show()
+        logDebug("componente resuelto: $resolved")
 
         try {
-            Toast.makeText(this, "lanzando pedido de captura...", Toast.LENGTH_SHORT).show()
+            logDebug("lanzando pedido de captura...")
             requestScreenCapture.launch(captureIntent)
         } catch (e: Exception) {
-            Toast.makeText(this, "launch() falló: ${e.javaClass.simpleName}: ${e.message}", Toast.LENGTH_LONG).show()
+            logDebug("launch() falló: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
