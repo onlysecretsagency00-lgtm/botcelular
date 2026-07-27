@@ -22,8 +22,8 @@ android {
         applicationId = "com.botcelular.mu"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "0.6.0"
+        versionCode = 19
+        versionName = "0.7.0-debug"
     }
 
     signingConfigs {
@@ -67,8 +67,14 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.lifecycle:lifecycle-service:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    // .await() sobre Task<T> de Google Play Services (lo que devuelve ML Kit).
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
     // Cliente HTTP simple para chequear GitHub Releases y descargar el APK.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // JSON de la respuesta de la API de GitHub.
     implementation("org.json:json:20240303")
+    // OCR en el dispositivo (sin servidor) para leer títulos/botones del
+    // Diario — equivalente Android de ocr_reader.py (pytesseract) del
+    // proyecto PC. Modelo Latin cubre español.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 }

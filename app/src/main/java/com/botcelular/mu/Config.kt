@@ -60,4 +60,21 @@ object Config {
     var hpPotionButtonY = 850
     var mpPotionButtonX = 1095
     var mpPotionButtonY = 850
+
+    // ── Diario (actividades diarias) — calibrado contra el EMULADOR ─────
+    // Ícono "Diario" en la pantalla principal (mismo que DIARIO_ICON_ZONE
+    // en config.py del proyecto PC, ese en fracción — acá en píxeles
+    // porque todavía estamos calibrando solo contra el emulador).
+    var diarioIconX = 1170
+    var diarioIconY = 95
+
+    // Cada cuánto se revisa el Diario en milisegundos, mientras el bot está
+    // activo (ON). Un valor chico permite encadenar varias actividades
+    // seguidas sin esperar mucho entre una y la siguiente.
+    const val DIARIO_CHECK_INTERVAL_MS = 5000L
+
+    // Cuánto esperar (ms) después de tocar el ícono de Diario o un botón
+    // "Ir" antes de leer la pantalla con OCR, para darle tiempo a la
+    // animación/carga del panel.
+    const val DIARIO_PANEL_DELAY_MS = 900L
 }

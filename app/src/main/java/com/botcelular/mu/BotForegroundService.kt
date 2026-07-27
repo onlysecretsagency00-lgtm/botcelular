@@ -87,6 +87,8 @@ class BotForegroundService : Service() {
     private var screenHeight = 0
     private var screenDensity = 0
 
+    private var lastDiarioCheckMs = 0L
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -195,7 +197,7 @@ class BotForegroundService : Service() {
         }
     }
 
-    // ── Loop de decisión (Fase 1 — solo pociones HP/MP) ────────────────
+    // ── Loop de decisión ─────────────────────────────────────────────
 
     private suspend fun runLoop() {
         while (isRunning) {
@@ -208,6 +210,7 @@ class BotForegroundService : Service() {
                         frame.recycle()
                     }
                 }
+                maybeCheckDiario()
             }
             delay(Config.TICK_INTERVAL_MS)
         }
@@ -230,6 +233,41 @@ class BotForegroundService : Service() {
         if (mpPct < Config.MP_THRESHOLD) {
             Log.i(TAG, "MP bajo (${(mpPct * 100).toInt()}%) — tap poción MP.")
             BotAccessibilityService.instance?.tap(Config.mpPotionButtonX, Config.mpPotionButtonY)
+        }
+    }
+
+    // ── Diario (actividades diarias) — v1, sin priorización todavía ────
+    // Abre el panel del Diario y toca el primer botón "Ir" que encuentre
+    // vía OCR (ML Kit). Equivalente Android, primera versión, de
+    // general_bot.py::_check_daily_activities del proyecto PC — esa
+    // versión tardó muchas iteraciones en vivo para llegar a algo robusto
+    // (priorizar Jefe Mundial, saltar actividades problemáticas, manejar
+    // pestañas de eventos especiales, etc.); acá arrancamos con lo mínimo
+    // y se va a ir afinando con pruebas reales, mismo proceso.
+    private suspend fun maybeCheckDiario() {
+        val now = System.currentTimeMillis()
+        if (now - lastDiarioCheckMs < Config.DIARIO_CHECK_INTERVAL_MS) return
+        lastDiarioCheckMs = now
+        checkDiario()
+    }
+
+    private suspend fun checkDiario() {
+        BotAccessibilityService.instance?.tap(Config.diarioIconX, Config.diarioIconY)
+        delay(Config.DIARIO_PANEL_DELAY_MS)
+        val frame = captureBitmap() ?: return
+        try {
+            val labels = OcrReader.readAllLabels(frame)
+            val irButton = labels.firstOrNull { it.text.trim().equals("ir", ignoreCase = true) }
+            if (irButton != null) {
+                Log.i(TAG, "Diario: tocando 'Ir' en (${irButton.centerX}, ${irButton.centerY}).")
+                BotAccessibilityService.instance?.tap(irButton.centerX, irButton.centerY)
+            } else {
+                Log.i(TAG, "Diario: no se encontró ningún botón 'Ir' (${labels.size} textos leídos).")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Diario: falló la lectura OCR.", e)
+        } finally {
+            frame.recycle()
         }
     }
 
