@@ -22,8 +22,8 @@ android {
         applicationId = "com.botcelular.mu"
         minSdk = 26
         targetSdk = 34
-        versionCode = 16
-        versionName = "0.5.5-debug"
+        versionCode = 17
+        versionName = "0.5.6-debug"
     }
 
     signingConfigs {

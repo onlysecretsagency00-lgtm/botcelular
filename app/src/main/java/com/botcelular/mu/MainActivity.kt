@@ -40,10 +40,16 @@ class MainActivity : AppCompatActivity() {
     ) { result ->
         logDebug("callback captura: resultCode=${result.resultCode} data=${result.data}")
         if (result.resultCode == RESULT_OK && result.data != null) {
+            // Pasar result.data como Intent-dentro-de-Intent (extra Parcelable)
+            // llega null del otro lado en este dispositivo (bug real
+            // confirmado con el log persistente — ver DebugLog). Como el
+            // Service corre en el mismo proceso, evitamos el reparcelado
+            // pasando el resultado por una referencia estática en memoria en
+            // vez de por extras.
+            BotForegroundService.pendingResultCode = result.resultCode
+            BotForegroundService.pendingResultData = result.data
             val serviceIntent = Intent(this, BotForegroundService::class.java).apply {
                 action = BotForegroundService.ACTION_START
-                putExtra(BotForegroundService.EXTRA_RESULT_CODE, result.resultCode)
-                putExtra(BotForegroundService.EXTRA_RESULT_DATA, result.data)
             }
             startForegroundService(serviceIntent)
             updateStatus()

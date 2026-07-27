@@ -55,8 +55,18 @@ class BotForegroundService : Service() {
         const val ACTION_STOP = "com.botcelular.mu.action.STOP"
         const val ACTION_PAUSE = "com.botcelular.mu.action.PAUSE"
         const val ACTION_RESUME = "com.botcelular.mu.action.RESUME"
-        const val EXTRA_RESULT_CODE = "result_code"
-        const val EXTRA_RESULT_DATA = "result_data"
+
+        // Puente en memoria para el resultado de MediaProjection — pasarlo
+        // como extra Parcelable de un Intent-dentro-de-Intent llega null del
+        // otro lado en este dispositivo (confirmado con DebugLog: "Faltan
+        // datos de MediaProjection" pese a que MainActivity sí tenía datos
+        // reales). Como el Service corre en el mismo proceso que
+        // MainActivity, una referencia estática evita el reparcelado.
+        @Volatile
+        var pendingResultCode: Int = -1
+
+        @Volatile
+        var pendingResultData: Intent? = null
 
         @Volatile
         var isRunning = false
@@ -96,14 +106,15 @@ class BotForegroundService : Service() {
 
         when (intent?.action) {
             ACTION_START -> {
-                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1)
-                val resultData = intent.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
-                if (resultData == null || resultCode == -1) {
-                    DebugLog.add("Faltan datos de MediaProjection (resultData=null?)")
+                val resultCode = pendingResultCode
+                val resultData = pendingResultData
+                if (resultData == null) {
+                    DebugLog.add("Faltan datos de MediaProjection (pendingResultData=null)")
                     Log.e(TAG, "Faltan datos de permiso de MediaProjection — no se puede arrancar.")
                     stopEverything()
                     return START_NOT_STICKY
                 }
+                pendingResultData = null
                 try {
                     startCapture(resultCode, resultData)
                     DebugLog.add("startCapture() OK")
