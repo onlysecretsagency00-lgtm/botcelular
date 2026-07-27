@@ -77,6 +77,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // TEMPORAL: muestra el log compartido de diagnóstico del Diario
+        // (ver DebugLog) — sin logcat disponible, es la única forma de ver
+        // qué hace BotForegroundService, que no tiene UI propia.
+        if (DebugLog.text.isNotEmpty()) binding.textCrashLog.text = DebugLog.text
         updateStatus()
     }
 

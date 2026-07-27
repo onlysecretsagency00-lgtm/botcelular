@@ -248,15 +248,21 @@ class BotForegroundService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastDiarioCheckMs < Config.DIARIO_CHECK_INTERVAL_MS) return
         lastDiarioCheckMs = now
+        DebugLog.add("checkDiario() arrancando (instance=${BotAccessibilityService.instance})")
         checkDiario()
     }
 
     private suspend fun checkDiario() {
         BotAccessibilityService.instance?.tap(Config.diarioIconX, Config.diarioIconY)
         delay(Config.DIARIO_PANEL_DELAY_MS)
-        val frame = captureBitmap() ?: return
+        val frame = captureBitmap()
+        if (frame == null) {
+            DebugLog.add("checkDiario: captureBitmap() devolvió null")
+            return
+        }
         try {
             val labels = OcrReader.readAllLabels(frame)
+            DebugLog.add("Diario OCR: ${labels.size} textos: ${labels.take(8).joinToString { it.text }}")
             val irButton = labels.firstOrNull { it.text.trim().equals("ir", ignoreCase = true) }
             if (irButton != null) {
                 Log.i(TAG, "Diario: tocando 'Ir' en (${irButton.centerX}, ${irButton.centerY}).")
@@ -265,6 +271,7 @@ class BotForegroundService : Service() {
                 Log.i(TAG, "Diario: no se encontró ningún botón 'Ir' (${labels.size} textos leídos).")
             }
         } catch (e: Exception) {
+            DebugLog.add("Diario OCR falló: ${e.javaClass.simpleName}: ${e.message}")
             Log.e(TAG, "Diario: falló la lectura OCR.", e)
         } finally {
             frame.recycle()

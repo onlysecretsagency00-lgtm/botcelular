@@ -78,7 +78,12 @@ class BotAccessibilityService : AccessibilityService() {
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0, 80))
             .build()
-        dispatchGesture(gesture, null, null)
+        // TEMPORAL: dispatchGesture devuelve false si el gesto NO se pudo
+        // encolar (ej. el servicio no tiene foco de gestos en ese momento) —
+        // antes se ignoraba ese resultado, así que un fallo silencioso acá
+        // era indistinguible de "no había nada para tocar".
+        val dispatched = dispatchGesture(gesture, null, null)
+        DebugLog.add("tap($x,$y) dispatched=$dispatched")
     }
 
     fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long) {
