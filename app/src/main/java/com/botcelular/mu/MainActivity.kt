@@ -2,7 +2,6 @@ package com.botcelular.mu
 
 import android.content.ComponentName
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -26,26 +25,17 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission(),
     ) { /* si la niega, la notificación del foreground service puede no mostrarse — no bloqueante */ }
 
-    // TEMPORAL: prueba de control para descartar si el problema es específico
-    // de MediaProjection o algo más general con los diálogos de permiso en
-    // este dispositivo — CAMERA sí tiene diálogo de runtime en API 28.
-    private val requestCameraTest = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        logDebug("resultado permiso cámara: $granted")
-    }
-
     private val requestScreenCapture = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        logDebug("callback captura: resultCode=${result.resultCode} data=${result.data}")
         if (result.resultCode == RESULT_OK && result.data != null) {
-            // Pasar result.data como Intent-dentro-de-Intent (extra Parcelable)
-            // llega null del otro lado en este dispositivo (bug real
-            // confirmado con el log persistente — ver DebugLog). Como el
-            // Service corre en el mismo proceso, evitamos el reparcelado
-            // pasando el resultado por una referencia estática en memoria en
-            // vez de por extras.
+            // El resultado se pasa a BotForegroundService por una referencia
+            // estática en memoria (pendingResultCode/pendingResultData), NO
+            // por extras del Intent — pasar este Intent como extra Parcelable
+            // anidado dentro de otro Intent llega null del otro lado en
+            // algunos dispositivos (confirmado en vivo). Como el Service
+            // corre siempre en el mismo proceso que esta Activity, la
+            // referencia en memoria es más simple y no tiene ese problema.
             BotForegroundService.pendingResultCode = result.resultCode
             BotForegroundService.pendingResultData = result.data
             val serviceIntent = Intent(this, BotForegroundService::class.java).apply {
@@ -54,7 +44,7 @@ class MainActivity : AppCompatActivity() {
             startForegroundService(serviceIntent)
             updateStatus()
         } else {
-            logDebug("permiso de captura de pantalla denegado")
+            Toast.makeText(this, "Permiso de captura de pantalla denegado.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -68,10 +58,6 @@ class MainActivity : AppCompatActivity() {
         binding.textVersion.text = "v${BuildConfig.VERSION_NAME}"
         binding.buttonToggle.setOnClickListener { onToggleClicked() }
         binding.buttonCheckUpdate.setOnClickListener { checkForUpdate() }
-        binding.buttonTestPermission.setOnClickListener {
-            Toast.makeText(this, "pidiendo permiso de cámara...", Toast.LENGTH_SHORT).show()
-            requestCameraTest.launch(android.Manifest.permission.CAMERA)
-        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -81,33 +67,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Muestra el último crash guardado por BotApplication (si hay uno) y lo
-     * borra, para no repetirlo en próximas aperturas. Se suma a DebugLog en
-     * vez de pisar el texto directamente, para no perderse con onResume(). */
+     * borra, para no repetirlo en próximas aperturas. */
     private fun showLastCrashIfAny() {
         val file = File(filesDir, BotApplication.CRASH_LOG_FILE)
         if (!file.exists()) return
-        DebugLog.add("=== CRASH ===\n${file.readText()}")
+        binding.textCrashLog.text = "Último error:\n\n${file.readText()}"
         file.delete()
     }
 
     override fun onResume() {
         super.onResume()
-        binding.textCrashLog.text = DebugLog.text
         updateStatus()
     }
 
-    /** TEMPORAL: log de diagnóstico FIJO en pantalla (no como Toast, que se
-     * cierra solo antes de que se pueda ver/capturar). Usa DebugLog (objeto
-     * compartido) para poder mostrar también lo que loguea
-     * BotForegroundService, que no tiene UI propia. */
-    private fun logDebug(msg: String) {
-        DebugLog.add(msg)
-        binding.textCrashLog.text = DebugLog.text
-    }
-
     private fun onToggleClicked() {
-        logDebug("onToggleClicked (isRunning=${BotForegroundService.isRunning})")
-
         if (BotForegroundService.isRunning) {
             startService(Intent(this, BotForegroundService::class.java).apply {
                 action = BotForegroundService.ACTION_STOP
@@ -117,25 +90,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (!isAccessibilityServiceEnabled()) {
-            logDebug("falta accesibilidad, abriendo Ajustes")
+            Toast.makeText(
+                this,
+                "Habilitá 'BotCelular' en Ajustes > Accesibilidad, después volvé a tocar ENCENDER.",
+                Toast.LENGTH_LONG,
+            ).show()
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
 
-        val captureIntent = projectionManager.createScreenCaptureIntent()
-        // TEMPORAL: diagnóstico — ¿el sistema tiene siquiera un componente
-        // que resuelva este intent? Si es null, el problema es que el
-        // componente de consentimiento de MediaProjection no existe/no
-        // resuelve en esta imagen de Android, no algo de nuestro código.
-        val resolved = captureIntent.resolveActivity(packageManager)
-        logDebug("componente resuelto: $resolved")
-
-        try {
-            logDebug("lanzando pedido de captura...")
-            requestScreenCapture.launch(captureIntent)
-        } catch (e: Exception) {
-            logDebug("launch() falló: ${e.javaClass.simpleName}: ${e.message}")
-        }
+        requestScreenCapture.launch(projectionManager.createScreenCaptureIntent())
     }
 
     private fun isAccessibilityServiceEnabled(): Boolean {

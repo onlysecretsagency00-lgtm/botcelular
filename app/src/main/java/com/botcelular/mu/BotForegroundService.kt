@@ -58,10 +58,9 @@ class BotForegroundService : Service() {
 
         // Puente en memoria para el resultado de MediaProjection — pasarlo
         // como extra Parcelable de un Intent-dentro-de-Intent llega null del
-        // otro lado en este dispositivo (confirmado con DebugLog: "Faltan
-        // datos de MediaProjection" pese a que MainActivity sí tenía datos
-        // reales). Como el Service corre en el mismo proceso que
-        // MainActivity, una referencia estática evita el reparcelado.
+        // otro lado en este dispositivo (confirmado en vivo). Como el
+        // Service corre en el mismo proceso que MainActivity, una
+        // referencia estática evita el reparcelado.
         @Volatile
         var pendingResultCode: Int = -1
 
@@ -90,12 +89,10 @@ class BotForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        DebugLog.add("BotForegroundService.onCreate")
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        DebugLog.add("onStartCommand action=${intent?.action}")
         // SIEMPRE, sin importar la acción: si esta invocación de
         // onStartCommand resultó de un startForegroundService() (ACTION_START),
         // el sistema exige que llamemos a startForeground() en ESTA llamada
@@ -109,19 +106,12 @@ class BotForegroundService : Service() {
                 val resultCode = pendingResultCode
                 val resultData = pendingResultData
                 if (resultData == null) {
-                    DebugLog.add("Faltan datos de MediaProjection (pendingResultData=null)")
                     Log.e(TAG, "Faltan datos de permiso de MediaProjection — no se puede arrancar.")
                     stopEverything()
                     return START_NOT_STICKY
                 }
                 pendingResultData = null
-                try {
-                    startCapture(resultCode, resultData)
-                    DebugLog.add("startCapture() OK")
-                } catch (e: Exception) {
-                    DebugLog.add("startCapture() falló: ${e.javaClass.simpleName}: ${e.message}")
-                    Log.e(TAG, "startCapture() falló", e)
-                }
+                startCapture(resultCode, resultData)
             }
             ACTION_PAUSE -> {
                 isPaused = true
